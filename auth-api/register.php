@@ -52,6 +52,15 @@ try {
             throw new Exception("Password must contain uppercase, lowercase letters, numbers and special characters");
         }
 
+        // Проверка капчи
+        if (!isset($data->captcha_answer) || !isset($data->captcha_correct_answer)) {
+            throw new Exception("Captcha verification failed");
+        }
+
+        if (intval($data->captcha_answer) !== intval($data->captcha_correct_answer)) {
+            throw new Exception("Invalid captcha answer");
+        }
+
         $database = new Database();
         $db = $database->getConnection();
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -13,17 +13,58 @@ const Register = () => {
     confirmPassword: '',
     age_group: '',
     gender: '',
-    agreed_to_terms: false
+    agreed_to_terms: false,
+    captcha_answer: ''
   });
   
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [captchaQuestion, setCaptchaQuestion] = useState('');
+  const [captchaCorrectAnswer, setCaptchaCorrectAnswer] = useState(0);
   const navigate = useNavigate();
   const { login } = useAuth();
 
   const API_BASE = 'http://localhost/auth-api';
+
+  // Генерация капчи при загрузке компонента
+  useEffect(() => {
+    generateCaptcha();
+  }, []);
+
+  // Функция генерации простой математической капчи
+  const generateCaptcha = () => {
+    const operators = ['+', '-', '*'];
+    const operator = operators[Math.floor(Math.random() * operators.length)];
+    let num1, num2, answer;
+
+    switch (operator) {
+      case '+':
+        num1 = Math.floor(Math.random() * 10) + 1;
+        num2 = Math.floor(Math.random() * 10) + 1;
+        answer = num1 + num2;
+        break;
+      case '-':
+        num1 = Math.floor(Math.random() * 10) + 10;
+        num2 = Math.floor(Math.random() * 10) + 1;
+        answer = num1 - num2;
+        break;
+      case '*':
+        num1 = Math.floor(Math.random() * 5) + 1;
+        num2 = Math.floor(Math.random() * 5) + 1;
+        answer = num1 * num2;
+        break;
+      default:
+        num1 = 1;
+        num2 = 1;
+        answer = 2;
+    }
+
+    setCaptchaQuestion(`${num1} ${operator} ${num2} = ?`);
+    setCaptchaCorrectAnswer(answer);
+    setFormData(prev => ({ ...prev, captcha_answer: '' }));
+  };
 
   // Функции переключения видимости пароля
   const togglePasswordVisibility = (field) => {
@@ -97,6 +138,16 @@ const Register = () => {
           delete newErrors[name];
         }
         break;
+
+      case 'captcha_answer':
+        if (!value.trim()) {
+          newErrors[name] = 'Введите ответ';
+        } else if (parseInt(value) !== captchaCorrectAnswer) {
+          newErrors[name] = 'Неверный ответ';
+        } else {
+          delete newErrors[name];
+        }
+        break;
         
       case 'age_group':
         if (!value) {
@@ -157,6 +208,7 @@ const Register = () => {
     if (!formData.age_group) newErrors.age_group = 'Выберите вариант';
     if (!formData.gender) newErrors.gender = 'Выберите пол';
     if (!formData.agreed_to_terms) newErrors.agreed_to_terms = 'Необходимо принять правила';
+    if (!formData.captcha_answer.trim()) newErrors.captcha_answer = 'Введите ответ на вопрос';
     
     // Детальная валидация
     validateField('first_name', formData.first_name);
@@ -165,6 +217,7 @@ const Register = () => {
     validateField('login', formData.login);
     validateField('password', formData.password);
     validateField('confirmPassword', formData.confirmPassword);
+    validateField('captcha_answer', formData.captcha_answer);
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -181,13 +234,17 @@ const Register = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API_BASE}/register.php`, formData);
+      const response = await axios.post(`${API_BASE}/register.php`, {
+        ...formData,
+        captcha_correct_answer: captchaCorrectAnswer
+      });
       
       if (response.data.success) {
         login(response.data.token, response.data.user);
         navigate('/profile', { replace: true });
       } else {
         alert(response.data.message || 'Ошибка регистрации');
+        generateCaptcha(); // Генерируем новую капчу при ошибке
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -196,6 +253,7 @@ const Register = () => {
       } else {
         alert('Ошибка при регистрации. Проверьте подключение к серверу.');
       }
+      generateCaptcha(); // Генерируем новую капчу при ошибке
     } finally {
       setLoading(false);
     }
@@ -375,6 +433,36 @@ const Register = () => {
               </label>
             </div>
             {errors.gender && <span className="error-text">{errors.gender}</span>}
+          </div>
+
+          {/* Капча */}
+          <div className="form-group">
+            <label>Подтвердите что вы не робот *</label>
+            <div className="captcha-container">
+              <div className="captcha-question">
+                <strong>{captchaQuestion}</strong>
+                <button 
+                  type="button" 
+                  className="captcha-refresh"
+                  onClick={generateCaptcha}
+                  disabled={loading}
+                >
+                  🔄
+                </button>
+              </div>
+              <input
+                type="number"
+                name="captcha_answer"
+                value={formData.captcha_answer}
+                onChange={handleChange}
+                required
+                disabled={loading}
+                placeholder="Введите ответ"
+                autoComplete="off"
+                className={errors.captcha_answer ? 'error' : ''}
+              />
+              {errors.captcha_answer && <span className="error-text">{errors.captcha_answer}</span>}
+            </div>
           </div>
 
           {/* Чекбокс */}
