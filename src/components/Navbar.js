@@ -1,14 +1,20 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const Navbar = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
+  const { isDarkTheme, toggleTheme } = useTheme();
 
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
+  };
+
+  const handleThemeToggle = () => {
+    toggleTheme();
   };
 
   return (
@@ -21,9 +27,14 @@ const Navbar = () => {
           {isAuthenticated ? (
             <>
               <span className="nav-welcome">
-                Привет, {user?.username || 'Пользователь'}!
+                Привет, {user?.username || user?.first_name || 'Пользователь'}!
               </span>
-              <Link to="/profile">Профиль</Link>
+              <button 
+                onClick={handleThemeToggle} 
+                className="theme-toggle-btn nav-theme-toggle"
+              >
+                {isDarkTheme ? '☀️ Светлая' : '🌙 Тёмная'}
+              </button>
               <button onClick={handleLogout} className="nav-button">
                 Выйти
               </button>
@@ -32,6 +43,12 @@ const Navbar = () => {
             <>
               <Link to="/login">Вход</Link>
               <Link to="/register">Регистрация</Link>
+              <button 
+                onClick={handleThemeToggle} 
+                className="theme-toggle-btn nav-theme-toggle"
+              >
+                {isDarkTheme ? '☀️ Светлая' : '🌙 Тёмная'}
+              </button>
             </>
           )}
         </div>

@@ -11,15 +11,20 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // При загрузке приложения проверяем наличие токена
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
     
     if (token && userData) {
       try {
-        setUser(JSON.parse(userData));
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
         setIsAuthenticated(true);
+        
+        // Применяем сохраненную тему пользователя
+        if (parsedUser.theme === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
       } catch (error) {
         console.error('Error parsing user data:', error);
         logout();
@@ -34,6 +39,11 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
     setIsAuthenticated(true);
+    
+    // Применяем тему пользователя
+    if (userData.theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
   };
 
   const logout = () => {
@@ -43,12 +53,21 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   };
 
+  const updateUserTheme = (theme) => {
+    if (user) {
+      const updatedUser = { ...user, theme };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    }
+  };
+
   const value = {
     isAuthenticated,
     user,
     login,
     logout,
-    loading
+    loading,
+    updateUserTheme
   };
 
   return (

@@ -5,65 +5,196 @@ import axios from 'axios';
 
 const Register = () => {
   const [formData, setFormData] = useState({
-    username: '',
+    first_name: '',
+    last_name: '',
     email: '',
+    login: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    age_group: '',
+    gender: '',
+    agreed_to_terms: false
   });
-  const [error, setError] = useState('');
+  
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
   const API_BASE = 'http://localhost/auth-api';
 
+  // Функции переключения видимости пароля
+  const togglePasswordVisibility = (field) => {
+    if (field === 'password') {
+      setShowPassword(!showPassword);
+    } else {
+      setShowConfirmPassword(!showConfirmPassword);
+    }
+  };
+
+  // Валидация полей
+  const validateField = (name, value) => {
+    const newErrors = { ...errors };
+    
+    switch (name) {
+      case 'first_name':
+      case 'last_name':
+        if (!value.trim()) {
+          newErrors[name] = 'Обязательное поле';
+        } else if (!/^[A-Za-zА-Яа-яЁё\s-]{2,15}$/.test(value)) {
+          newErrors[name] = 'Только буквы, дефисы и пробелы (2-15 символов)';
+        } else {
+          delete newErrors[name];
+        }
+        break;
+        
+      case 'email':
+        if (!value.trim()) {
+          newErrors[name] = 'Обязательное поле';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          newErrors[name] = 'Неверный формат email';
+        } else {
+          delete newErrors[name];
+        }
+        break;
+        
+      case 'login':
+        if (!value.trim()) {
+          newErrors[name] = 'Обязательное поле';
+        } else if (value.length < 6) {
+          newErrors[name] = 'Логин должен быть не менее 6 символов';
+        } else {
+          delete newErrors[name];
+        }
+        break;
+        
+      case 'password':
+        if (!value) {
+          newErrors[name] = 'Обязательное поле';
+        } else if (value.length < 8) {
+          newErrors[name] = 'Пароль должен быть не менее 8 символов';
+        } else {
+          // Упрощенная проверка пароля
+          const hasUpperCase = /[A-Z]/.test(value);
+          const hasLowerCase = /[a-z]/.test(value);
+          const hasNumbers = /\d/.test(value);
+          const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value);
+          
+          if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
+            newErrors[name] = 'Пароль должен содержать заглавные, строчные буквы, цифры и спецсимволы';
+          } else {
+            delete newErrors[name];
+          }
+        }
+        break;
+        
+      case 'confirmPassword':
+        if (value !== formData.password) {
+          newErrors[name] = 'Пароли не совпадают';
+        } else {
+          delete newErrors[name];
+        }
+        break;
+        
+      case 'age_group':
+        if (!value) {
+          newErrors[name] = 'Выберите вариант';
+        } else {
+          delete newErrors[name];
+        }
+        break;
+        
+      case 'gender':
+        if (!value) {
+          newErrors[name] = 'Выберите пол';
+        } else {
+          delete newErrors[name];
+        }
+        break;
+        
+      case 'agreed_to_terms':
+        if (!value) {
+          newErrors[name] = 'Необходимо принять правила';
+        } else {
+          delete newErrors[name];
+        }
+        break;
+        
+      default:
+        break;
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value, type, checked } = e.target;
+    const fieldValue = type === 'checkbox' ? checked : value;
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: fieldValue
+    }));
+    
+    // Валидация при изменении
+    if (name !== 'agreed_to_terms') {
+      validateField(name, fieldValue);
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.first_name.trim()) newErrors.first_name = 'Обязательное поле';
+    if (!formData.last_name.trim()) newErrors.last_name = 'Обязательное поле';
+    if (!formData.email.trim()) newErrors.email = 'Обязательное поле';
+    if (!formData.login.trim()) newErrors.login = 'Обязательное поле';
+    if (!formData.password) newErrors.password = 'Обязательное поле';
+    if (!formData.confirmPassword) newErrors.confirmPassword = 'Обязательное поле';
+    if (!formData.age_group) newErrors.age_group = 'Выберите вариант';
+    if (!formData.gender) newErrors.gender = 'Выберите пол';
+    if (!formData.agreed_to_terms) newErrors.agreed_to_terms = 'Необходимо принять правила';
+    
+    // Детальная валидация
+    validateField('first_name', formData.first_name);
+    validateField('last_name', formData.last_name);
+    validateField('email', formData.email);
+    validateField('login', formData.login);
+    validateField('password', formData.password);
+    validateField('confirmPassword', formData.confirmPassword);
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     
-    if (formData.password !== formData.confirmPassword) {
-      setError('Пароли не совпадают');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError('Пароль должен содержать минимум 6 символов');
+    if (!validateForm()) {
+      alert('Пожалуйста, исправьте ошибки в форме');
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API_BASE}/register.php`, {
-        username: formData.username,
-        email: formData.email,
-        password: formData.password
-      });
+      const response = await axios.post(`${API_BASE}/register.php`, formData);
       
       if (response.data.success) {
-        // ✅ АВТОМАТИЧЕСКИ ЛОГИНИМ ПОСЛЕ РЕГИСТРАЦИИ
         login(response.data.token, response.data.user);
-        
-        // ✅ НЕМЕДЛЕННЫЙ ПЕРЕХОД НА ПРОФИЛЬ
         navigate('/profile', { replace: true });
       } else {
-        setError(response.data.message);
+        alert(response.data.message || 'Ошибка регистрации');
       }
     } catch (error) {
       console.error('Registration error:', error);
-      if (error.response) {
-        setError(error.response.data?.message || `Server error: ${error.response.status}`);
-      } else if (error.request) {
-        setError('Cannot connect to server. Check if XAMPP is running.');
+      if (error.response?.data?.message) {
+        alert(error.response.data.message);
       } else {
-        setError('Request error: ' + error.message);
+        alert('Ошибка при регистрации. Проверьте подключение к серверу.');
       }
     } finally {
       setLoading(false);
@@ -74,22 +205,46 @@ const Register = () => {
     <div className="auth-container">
       <div className="auth-form">
         <h2>Регистрация</h2>
-        {error && <div className="error-message">{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Имя пользователя:</label>
-            <input
-              type="text"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              required
-              disabled={loading}
-              placeholder="Придумайте имя пользователя"
-            />
+        
+        <form onSubmit={handleSubmit} autoComplete="off">
+          {/* Имя и Фамилия */}
+          <div className="form-row">
+            <div className="form-group">
+              <label>Имя *</label>
+              <input
+                type="text"
+                name="first_name"
+                value={formData.first_name}
+                onChange={handleChange}
+                required
+                disabled={loading}
+                placeholder="Иван"
+                autoComplete="off"
+                className={errors.first_name ? 'error' : ''}
+              />
+              {errors.first_name && <span className="error-text">{errors.first_name}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label>Фамилия *</label>
+              <input
+                type="text"
+                name="last_name"
+                value={formData.last_name}
+                onChange={handleChange}
+                required
+                disabled={loading}
+                placeholder="Иванов"
+                autoComplete="off"
+                className={errors.last_name ? 'error' : ''}
+              />
+              {errors.last_name && <span className="error-text">{errors.last_name}</span>}
+            </div>
           </div>
+
+          {/* Email */}
           <div className="form-group">
-            <label>Email:</label>
+            <label>Email *</label>
             <input
               type="email"
               name="email"
@@ -97,42 +252,156 @@ const Register = () => {
               onChange={handleChange}
               required
               disabled={loading}
-              placeholder="your@email.com"
+              placeholder="ivan@example.com"
+              autoComplete="off"
+              className={errors.email ? 'error' : ''}
             />
+            {errors.email && <span className="error-text">{errors.email}</span>}
           </div>
+
+          {/* Логин */}
           <div className="form-group">
-            <label>Пароль:</label>
+            <label>Логин *</label>
             <input
-              type="password"
-              name="password"
-              value={formData.password}
+              type="text"
+              name="login"
+              value={formData.login}
               onChange={handleChange}
               required
               disabled={loading}
-              placeholder="минимум 6 символов"
+              placeholder="Не менее 6 символов"
+              autoComplete="off"
+              className={errors.login ? 'error' : ''}
             />
+            {errors.login && <span className="error-text">{errors.login}</span>}
           </div>
+
+          {/* Пароли */}
+          <div className="form-row">
+            <div className="form-group">
+              <label>Пароль *</label>
+              <div className="password-input-container">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                  placeholder="Не менее 8 символов"
+                  autoComplete="new-password"
+                  className={errors.password ? 'error' : ''}
+                />
+                <button 
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => togglePasswordVisibility('password')}
+                >
+                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                </button>
+              </div>
+              {errors.password && <span className="error-text">{errors.password}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label>Подтверждение *</label>
+              <div className="password-input-container">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                  placeholder="Повторите пароль"
+                  autoComplete="new-password"
+                  className={errors.confirmPassword ? 'error' : ''}
+                />
+                <button 
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => togglePasswordVisibility('confirmPassword')}
+                >
+                  {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+                </button>
+              </div>
+              {errors.confirmPassword && <span className="error-text">{errors.confirmPassword}</span>}
+            </div>
+          </div>
+
+          {/* Возраст */}
           <div className="form-group">
-            <label>Подтвердите пароль:</label>
-            <input
-              type="password"
-              name="confirmPassword"
-              value={formData.confirmPassword}
+            <label>Возраст *</label>
+            <select
+              name="age_group"
+              value={formData.age_group}
               onChange={handleChange}
               required
               disabled={loading}
-              placeholder="повторите пароль"
-            />
+              className={errors.age_group ? 'error' : ''}
+            >
+              <option value="">Выберите вариант</option>
+              <option value="over18">Мне 18 лет или больше</option>
+              <option value="under18">Мне меньше 18 лет</option>
+            </select>
+            {errors.age_group && <span className="error-text">{errors.age_group}</span>}
           </div>
+
+          {/* Пол */}
+          <div className="form-group">
+            <label>Пол *</label>
+            <div className="radio-group">
+              <label className="radio-label">
+                <input
+                  type="radio"
+                  name="gender"
+                  value="male"
+                  checked={formData.gender === 'male'}
+                  onChange={handleChange}
+                  disabled={loading}
+                />
+                Мужской
+              </label>
+              <label className="radio-label">
+                <input
+                  type="radio"
+                  name="gender"
+                  value="female"
+                  checked={formData.gender === 'female'}
+                  onChange={handleChange}
+                  disabled={loading}
+                />
+                Женский
+              </label>
+            </div>
+            {errors.gender && <span className="error-text">{errors.gender}</span>}
+          </div>
+
+          {/* Чекбокс */}
+          <div className="form-group checkbox-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                name="agreed_to_terms"
+                checked={formData.agreed_to_terms}
+                onChange={handleChange}
+                disabled={loading}
+              />
+              Принимаю правила использования сервиса *
+            </label>
+            {errors.agreed_to_terms && <span className="error-text">{errors.agreed_to_terms}</span>}
+          </div>
+
           <button 
             type="submit" 
             className="auth-button"
-            disabled={loading}
+            disabled={loading || Object.keys(errors).length > 0}
           >
             {loading ? '⏳ Регистрация...' : '📝 Зарегистрироваться'}
           </button>
         </form>
-        <p>
+        
+        <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '14px' }}>
           Уже есть аккаунт? <Link to="/login">Войдите</Link>
         </p>
       </div>

@@ -7,8 +7,8 @@ const Profile = () => {
   const { user, logout } = useAuth();
 
   const handleLogout = () => {
-    logout(); // ✅ Используем Context для выхода
-    navigate('/login', { replace: true }); // ✅ Немедленный переход
+    logout();
+    navigate('/login', { replace: true });
   };
 
   const formatDate = (dateString) => {
@@ -19,6 +19,14 @@ const Profile = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const getGenderText = (gender) => {
+    return gender === 'male' ? 'Мужской' : 'Женский';
+  };
+
+  const getAgeGroupText = (ageGroup) => {
+    return ageGroup === 'over18' ? '18 лет или больше' : 'Меньше 18 лет';
   };
 
   if (!user) {
@@ -40,57 +48,73 @@ const Profile = () => {
         </div>
 
         <div className="profile-content">
-          <div className="user-card">
-            <div className="user-avatar">
-              {user.username ? user.username.charAt(0).toUpperCase() : 'U'}
-            </div>
-            <div className="user-info">
-              <h2>{user.username || 'Пользователь'}</h2>
-              <p className="user-email">{user.email}</p>
-              <p className="user-id">ID: {user.id}</p>
-              {user.created_at && (
-                <p className="user-join-date">
-                  Зарегистрирован: {formatDate(user.created_at)}
-                </p>
-              )}
-            </div>
+          {/* Приветствие */}
+          <div className="welcome-section">
+            <h2>Добро пожаловать, {user.first_name} {user.last_name}! 👋</h2>
+            <p>Рады видеть вас в вашем личном кабинете</p>
           </div>
 
-          <div className="profile-stats">
-            <div className="stat-card">
-              <h3>Статистика</h3>
-              <div className="stats-grid">
-                <div className="stat-item">
-                  <span className="stat-number">0</span>
-                  <span className="stat-label">Задач</span>
+          {/* Основная информация */}
+          <div className="user-card">
+            <div className="user-avatar">
+              {user.first_name ? user.first_name.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div className="user-info">
+              <h3>Основная информация</h3>
+              <div className="info-grid">
+                <div className="info-item">
+                  <span className="info-label">Имя:</span>
+                  <span className="info-value">{user.first_name}</span>
                 </div>
-                <div className="stat-item">
-                  <span className="stat-number">0</span>
-                  <span className="stat-label">Проектов</span>
+                <div className="info-item">
+                  <span className="info-label">Фамилия:</span>
+                  <span className="info-value">{user.last_name}</span>
                 </div>
-                <div className="stat-item">
-                  <span className="stat-number">0</span>
-                  <span className="stat-label">Друзей</span>
+                <div className="info-item">
+                  <span className="info-label">Email:</span>
+                  <span className="info-value">{user.email}</span>
                 </div>
+                <div className="info-item">
+                  <span className="info-label">Логин:</span>
+                  <span className="info-value">{user.login}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Пол:</span>
+                  <span className="info-value">{getGenderText(user.gender)}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Возраст:</span>
+                  <span className="info-value">{getAgeGroupText(user.age_group)}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">ID:</span>
+                  <span className="info-value">{user.id}</span>
+                </div>
+                {user.created_at && (
+                  <div className="info-item">
+                    <span className="info-label">Зарегистрирован:</span>
+                    <span className="info-value">{formatDate(user.created_at)}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="quick-actions">
-            <h3>Быстрые действия</h3>
-            <div className="actions-grid">
-              <button className="action-btn" disabled>
-                📝 Создать задачу
-              </button>
-              <button className="action-btn" disabled>
-                👥 Найти друзей
-              </button>
-              <button className="action-btn" disabled>
-                ⚙️ Настройки
-              </button>
-              <button className="action-btn" disabled>
-                📊 Аналитика
-              </button>
+          {/* Настройки */}
+          <div className="settings-section">
+            <h3>Настройки</h3>
+            <div className="settings-grid">
+              <div className="setting-item">
+                <span>Текущая тема:</span>
+                <span className="setting-value">
+                  {/* Тема теперь управляется из навбара */}
+                  {document.documentElement.getAttribute('data-theme') === 'dark' ? 'Тёмная' : 'Светлая'}
+                </span>
+              </div>
+              <div className="setting-item">
+                <span>Статус аккаунта:</span>
+                <span className="setting-value active">Активен</span>
+              </div>
             </div>
           </div>
         </div>
