@@ -3,7 +3,6 @@ include 'config.php';
 
 try {
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        // Получаем JSON данные
         $json = file_get_contents('php://input');
         $data = json_decode($json);
         
@@ -11,17 +10,17 @@ try {
             throw new Exception("Invalid JSON data");
         }
         
-        if (!isset($data->email) || !isset($data->password)) {
-            throw new Exception("Email and password are required");
+        if (!isset($data->login) || !isset($data->password)) {
+            throw new Exception("Login and password are required");
         }
 
         $database = new Database();
         $db = $database->getConnection();
 
-        // Поиск пользователя
-        $query = "SELECT id, username, email, password, created_at FROM users WHERE email = ?";
+        // Поиск пользователя по логину
+        $query = "SELECT id, first_name, last_name, email, login, password, age_group, gender, theme, created_at FROM users WHERE login = ?";
         $stmt = $db->prepare($query);
-        $stmt->execute([$data->email]);
+        $stmt->execute([$data->login]);
         
         if ($stmt->rowCount() == 1) {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
