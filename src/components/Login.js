@@ -36,7 +36,7 @@ const Login = () => {
       });
       
       if (response.data.success) {
-        login(response.data.token, response.data.user);
+        login(response.data.access_token, response.data.refresh_token, response.data.user);
         navigate('/profile', { replace: true });
       } else {
         setError(response.data.message || 'Ошибка входа');

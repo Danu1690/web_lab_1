@@ -23,11 +23,11 @@ try {
         }
 
         // Валидация данных
-        if (!preg_match('/^[A-Za-zА-Яа-яЁё\s-]{2,15}$/', $data->first_name)) {
+        if (!preg_match('/^[A-Za-zА-Яа-яЁё\s-]{2,15}$/u', $data->first_name)) {
             throw new Exception("Invalid first name format");
         }
         
-        if (!preg_match('/^[A-Za-zА-Яа-яЁё\s-]{2,15}$/', $data->last_name)) {
+        if (!preg_match('/^[A-Za-zА-Яа-яЁё\s-]{2,15}$/u', $data->last_name)) {
             throw new Exception("Invalid last name format");
         }
         
@@ -41,15 +41,6 @@ try {
         
         if (strlen($data->password) < 8) {
             throw new Exception("Password must be at least 8 characters");
-        }
-        
-        $hasUpperCase = preg_match('/[A-Z]/', $data->password);
-        $hasLowerCase = preg_match('/[a-z]/', $data->password);
-        $hasNumbers = preg_match('/\d/', $data->password);
-        $hasSpecialChar = preg_match('/[!@#$%^&*()_+\-=\[\]{};:\'"\\|,.<>\/?]/', $data->password);
-
-        if (!$hasUpperCase || !$hasLowerCase || !$hasNumbers || !$hasSpecialChar) {
-            throw new Exception("Password must contain uppercase, lowercase letters, numbers and special characters");
         }
 
         // Проверка капчи
@@ -87,7 +78,7 @@ try {
             $hashedPassword,
             $data->age_group,
             $data->gender,
-            $data->agreed_to_terms
+            $data->agreed_to_terms ? 1 : 0
         ])) {
             $userId = $db->lastInsertId();
             
@@ -97,10 +88,21 @@ try {
             $userStmt->execute([$userId]);
             $user = $userStmt->fetch(PDO::FETCH_ASSOC);
             
+            // Генерируем токены
+            $accessToken = generateJWT(['user_id' => $userId], JWT_ACCESS_SECRET, 900); // 15 минут
+            $refreshToken = generateRefreshToken();
+            
+            // Сохраняем refresh токен в базу (30 дней)
+            $expiresAt = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60));
+            $refreshQuery = "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)";
+            $refreshStmt = $db->prepare($refreshQuery);
+            $refreshStmt->execute([$userId, $refreshToken, $expiresAt]);
+            
             echo json_encode([
                 "success" => true, 
                 "message" => "User registered successfully",
-                "token" => generateToken($userId),
+                "access_token" => $accessToken,
+                "refresh_token" => $refreshToken,
                 "user" => $user
             ]);
         } else {
@@ -110,6 +112,7 @@ try {
         throw new Exception("Invalid request method");
     }
 } catch (Exception $e) {
+    http_response_code(400);
     echo json_encode([
         "success" => false, 
         "message" => $e->getMessage()

@@ -1,5 +1,5 @@
 <?php
-// Устанавливаем CORS заголовки только если они еще не установлены
+// Устанавливаем CORS заголовки
 if (!headers_sent()) {
     header("Access-Control-Allow-Origin: http://localhost:3000");
     header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
@@ -26,22 +26,77 @@ class Database {
             $this->conn = new PDO(
                 "mysql:host=" . $this->host . ";dbname=" . $this->db_name,
                 $this->username,
-                $this->password
+                $this->password,
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
             $this->conn->exec("set names utf8");
-            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch(PDOException $exception) {
-            echo json_encode(["success" => false, "message" => "Database connection failed: " . $exception->getMessage()]);
+            error_log("Database connection failed: " . $exception->getMessage());
+            echo json_encode([
+                "success" => false, 
+                "message" => "Database connection error"
+            ]);
             exit;
         }
         return $this->conn;
     }
 }
 
-function generateToken($userId) {
-    return md5(uniqid($userId, true) . time());
+// JWT секретные ключи
+define('JWT_ACCESS_SECRET', 'd7742782257a9bb69e2429960a7c1c4e');
+define('JWT_REFRESH_SECRET', 'df77e00cbb584a2357bdaba0970a038f');
+
+// Генерация JWT токена
+function generateJWT($payload, $secret, $expiresIn = 3600) {
+    $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
+    $payload['exp'] = time() + $expiresIn;
+    $payload['iat'] = time();
+    
+    $base64Header = base64_encode($header);
+    $base64Payload = base64_encode(json_encode($payload));
+    
+    $signature = hash_hmac('sha256', $base64Header . "." . $base64Payload, $secret, true);
+    $base64Signature = base64_encode($signature);
+    
+    return $base64Header . "." . $base64Payload . "." . $base64Signature;
 }
 
+// Валидация JWT токена
+function validateJWT($token, $secret) {
+    try {
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            return false;
+        }
+        
+        list($base64Header, $base64Payload, $base64Signature) = $parts;
+        
+        $signature = base64_decode($base64Signature);
+        $expectedSignature = hash_hmac('sha256', $base64Header . "." . $base64Payload, $secret, true);
+        
+        if (!hash_equals($signature, $expectedSignature)) {
+            return false;
+        }
+        
+        $payload = json_decode(base64_decode($base64Payload), true);
+        
+        // Проверяем expiration time
+        if (isset($payload['exp']) && $payload['exp'] < time()) {
+            return false;
+        }
+        
+        return $payload;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+// Генерация случайного refresh токена
+function generateRefreshToken() {
+    return bin2hex(random_bytes(32));
+}
+
+// Получение токена из заголовка
 function getBearerToken() {
     $headers = getallheaders();
     

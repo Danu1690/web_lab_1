@@ -240,7 +240,7 @@ const Register = () => {
       });
       
       if (response.data.success) {
-        login(response.data.token, response.data.user);
+        login(response.data.access_token, response.data.refresh_token, response.data.user);
         navigate('/profile', { replace: true });
       } else {
         alert(response.data.message || 'Ошибка регистрации');
@@ -347,7 +347,7 @@ const Register = () => {
                   required
                   disabled={loading}
                   placeholder="Не менее 8 символов"
-                  autoComplete="new-password"
+                  autoComplete="off"
                   className={errors.password ? 'error' : ''}
                 />
                 <button 
@@ -372,7 +372,7 @@ const Register = () => {
                   required
                   disabled={loading}
                   placeholder="Повторите пароль"
-                  autoComplete="new-password"
+                  autoComplete="off"
                   className={errors.confirmPassword ? 'error' : ''}
                 />
                 <button 
