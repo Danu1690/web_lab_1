@@ -23,6 +23,8 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [captchaQuestion, setCaptchaQuestion] = useState('');
   const [captchaCorrectAnswer, setCaptchaCorrectAnswer] = useState(0);
+  const [loginChecking, setLoginChecking] = useState(false);
+  const [loginAvailable, setLoginAvailable] = useState(null);
   const navigate = useNavigate();
   const { login } = useAuth();
 
@@ -32,6 +34,49 @@ const Register = () => {
   useEffect(() => {
     generateCaptcha();
   }, []);
+
+  // Функция проверки доступности логина
+  const checkLoginAvailability = async (login) => {
+    if (login.length < 6) {
+      setLoginAvailable(null);
+      return;
+    }
+
+    setLoginChecking(true);
+    try {
+      const response = await axios.post(`${API_BASE}/check-login.php`, {
+        login: login
+      });
+      
+      setLoginAvailable(response.data.available);
+      
+      if (!response.data.available) {
+        setErrors(prev => ({ ...prev, login: 'Этот логин уже занят' }));
+      } else {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.login;
+          return newErrors;
+        });
+      }
+    } catch (error) {
+      console.error('Error checking login:', error);
+      setLoginAvailable(null);
+    } finally {
+      setLoginChecking(false);
+    }
+  };
+
+  // Дебаунс для проверки логина
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.login && formData.login.length >= 6) {
+        checkLoginAvailability(formData.login);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.login]);
 
   // Функция генерации простой математической капчи
   const generateCaptcha = () => {
@@ -106,6 +151,8 @@ const Register = () => {
           newErrors[name] = 'Обязательное поле';
         } else if (value.length < 6) {
           newErrors[name] = 'Логин должен быть не менее 6 символов';
+        } else if (loginAvailable === false) {
+          newErrors[name] = 'Этот логин уже занят';
         } else {
           delete newErrors[name];
         }
@@ -190,6 +237,11 @@ const Register = () => {
       [name]: fieldValue
     }));
     
+    // Сбрасываем статус проверки логина при изменении
+    if (name === 'login') {
+      setLoginAvailable(null);
+    }
+    
     // Валидация при изменении
     if (name !== 'agreed_to_terms') {
       validateField(name, fieldValue);
@@ -231,6 +283,12 @@ const Register = () => {
       return;
     }
 
+    // Проверяем, что логин доступен
+    if (loginAvailable === false) {
+      alert('Выберите другой логин, этот уже занят');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -240,7 +298,7 @@ const Register = () => {
       });
       
       if (response.data.success) {
-        login(response.data.access_token, response.data.refresh_token, response.data.user);
+        login(response.data.access_token, response.data.user);
         navigate('/profile', { replace: true });
       } else {
         alert(response.data.message || 'Ошибка регистрации');
@@ -257,6 +315,27 @@ const Register = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Функция для отображения статуса логина
+  const renderLoginStatus = () => {
+    if (!formData.login || formData.login.length < 6) {
+      return null;
+    }
+    
+    if (loginChecking) {
+      return <span className="login-status checking">🔍 Проверяем...</span>;
+    }
+    
+    if (loginAvailable === true) {
+      return <span className="login-status available">✅ Логин свободен</span>;
+    }
+    
+    if (loginAvailable === false) {
+      return <span className="login-status taken">❌ Логин занят</span>;
+    }
+    
+    return null;
   };
 
   return (
@@ -317,7 +396,7 @@ const Register = () => {
             {errors.email && <span className="error-text">{errors.email}</span>}
           </div>
 
-          {/* Логин */}
+          {/* Логин с проверкой */}
           <div className="form-group">
             <label>Логин *</label>
             <input
@@ -331,6 +410,7 @@ const Register = () => {
               autoComplete="off"
               className={errors.login ? 'error' : ''}
             />
+            {renderLoginStatus()}
             {errors.login && <span className="error-text">{errors.login}</span>}
           </div>
 
@@ -483,7 +563,7 @@ const Register = () => {
           <button 
             type="submit" 
             className="auth-button"
-            disabled={loading || Object.keys(errors).length > 0}
+            disabled={loading || Object.keys(errors).length > 0 || loginAvailable === false}
           >
             {loading ? '⏳ Регистрация...' : '📝 Зарегистрироваться'}
           </button>

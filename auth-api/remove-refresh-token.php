@@ -3,18 +3,17 @@ include 'config.php';
 
 try {
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        $refreshToken = $_COOKIE['refresh_token'] ?? null;
-        
-        if ($refreshToken) {
+        // Удаляем refresh token из базы данных
+        if (isset($_COOKIE['refresh_token'])) {
             $database = new Database();
             $db = $database->getConnection();
 
             $query = "DELETE FROM refresh_tokens WHERE token = ?";
             $stmt = $db->prepare($query);
-            $stmt->execute([$refreshToken]);
+            $stmt->execute([$_COOKIE['refresh_token']]);
         }
 
-        // Очищаем куку
+        // Удаляем cookie
         setcookie('refresh_token', '', [
             'expires' => time() - 3600,
             'path' => '/',
@@ -26,12 +25,13 @@ try {
         
         echo json_encode([
             "success" => true,
-            "message" => "Logged out successfully"
+            "message" => "Refresh token removed successfully"
         ]);
     } else {
         throw new Exception("Invalid request method");
     }
 } catch (Exception $e) {
+    http_response_code(400);
     echo json_encode([
         "success" => false, 
         "message" => $e->getMessage()

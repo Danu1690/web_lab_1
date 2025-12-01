@@ -1,62 +1,53 @@
 <?php
-include 'config.php';
+// Минимальные заголовки
+header("Access-Control-Allow-Origin: http://localhost:3000");
+header("Access-Control-Allow-Methods: POST");
+header("Access-Control-Allow-Headers: Content-Type");
+header("Content-Type: application/json");
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    exit(0);
+}
 
 try {
-    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        $json = file_get_contents('php://input');
-        $data = json_decode($json);
-        
-        if (!$data) {
-            throw new Exception("Invalid JSON data");
-        }
-        
-        if (!isset($data->login) || !isset($data->password)) {
-            throw new Exception("Login and password are required");
-        }
-
-        $database = new Database();
-        $db = $database->getConnection();
-
-        // Поиск пользователя по логину
-        $query = "SELECT id, first_name, last_name, email, login, password, age_group, gender, theme, created_at FROM users WHERE login = ?";
-        $stmt = $db->prepare($query);
-        $stmt->execute([$data->login]);
-        
-        if ($stmt->rowCount() == 1) {
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if (password_verify($data->password, $user['password'])) {
-                // Убираем пароль из ответа
-                unset($user['password']);
-                
-                // Генерируем токены
-                $accessToken = generateJWT(['user_id' => $user['id']], JWT_ACCESS_SECRET, 900); // 15 минут
-                $refreshToken = generateRefreshToken();
-                
-                // Сохраняем refresh токен в базу (30 дней)
-                $expiresAt = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60));
-                $refreshQuery = "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)";
-                $refreshStmt = $db->prepare($refreshQuery);
-                $refreshStmt->execute([$user['id'], $refreshToken, $expiresAt]);
-                
-                echo json_encode([
-                    "success" => true,
-                    "message" => "Login successful",
-                    "access_token" => $accessToken,
-                    "refresh_token" => $refreshToken,
-                    "user" => $user
-                ]);
-            } else {
-                throw new Exception("Invalid password");
-            }
-        } else {
-            throw new Exception("User not found");
-        }
-    } else {
-        throw new Exception("Invalid request method");
+    // Только POST
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        throw new Exception("Only POST allowed");
     }
+
+    // Получаем данные
+    $input = json_decode(file_get_contents('php://input'));
+    
+    if (!$input || !isset($input->login) || !isset($input->password)) {
+        throw new Exception("Need login and password");
+    }
+
+    // Простое подключение к БД
+    $pdo = new PDO("mysql:host=localhost;dbname=auth_system", "root", "");
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // Один запрос к БД
+    $stmt = $pdo->prepare("SELECT id, password FROM users WHERE login = ?");
+    $stmt->execute([$input->login]);
+    $user = $stmt->fetch();
+
+    if (!$user) {
+        throw new Exception("User not found");
+    }
+
+    if (!password_verify($input->password, $user['password'])) {
+        throw new Exception("Wrong password");
+    }
+
+    // Простой ответ
+    echo json_encode([
+        "success" => true,
+        "message" => "OK",
+        "access_token" => "temp_token_" . $user['id'], // временно без JWT
+        "user" => ["id" => $user['id'], "login" => $input->login]
+    ]);
+
 } catch (Exception $e) {
-    http_response_code(401);
     echo json_encode([
         "success" => false, 
         "message" => $e->getMessage()

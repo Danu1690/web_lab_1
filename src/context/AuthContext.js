@@ -4,7 +4,11 @@ import axios from 'axios';
 const AuthContext = createContext();
 
 export const useAuth = () => {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
 
 export const AuthProvider = ({ children }) => {
@@ -17,18 +21,18 @@ export const AuthProvider = ({ children }) => {
   // Функция для обновления токенов
   const refreshTokens = async () => {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) {
-        throw new Error('No refresh token');
-      }
-
-      const response = await axios.post(`${API_BASE}/refresh-token.php`, {
-        refresh_token: refreshToken
-      });
-
+      const response = await axios.post(`${API_BASE}/refresh-token.php`);
+      
       if (response.data.success) {
         localStorage.setItem('access_token', response.data.access_token);
-        localStorage.setItem('refresh_token', response.data.refresh_token);
+        
+        // Обновляем данные пользователя если пришли
+        if (response.data.user) {
+          const updatedUser = { ...user, ...response.data.user };
+          setUser(updatedUser);
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+        }
+        
         return true;
       }
     } catch (error) {
@@ -77,21 +81,21 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  // Инициализация аутентификации
   useEffect(() => {
     const initializeAuth = async () => {
       const accessToken = localStorage.getItem('access_token');
-      const refreshToken = localStorage.getItem('refresh_token');
       const userData = localStorage.getItem('user');
       
-      if (accessToken && refreshToken && userData) {
+      if (accessToken && userData) {
         try {
           const parsedUser = JSON.parse(userData);
           setUser(parsedUser);
           setIsAuthenticated(true);
           
-          // Применяем сохраненную тему пользователя
-          if (parsedUser.theme === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark');
+          if (parsedUser.theme) {
+            document.documentElement.setAttribute('data-theme', parsedUser.theme);
+            localStorage.setItem('theme', parsedUser.theme);
           }
         } catch (error) {
           console.error('Error parsing user data:', error);
@@ -105,44 +109,54 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  const login = (accessToken, refreshToken, userData) => {
+  const login = (accessToken, userData) => {
+    if (!userData || typeof userData !== 'object') {
+      throw new Error('User data is required for login');
+    }
+
     localStorage.setItem('access_token', accessToken);
-    localStorage.setItem('refresh_token', refreshToken);
-    localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
     setIsAuthenticated(true);
     
-    // Применяем тему пользователя
-    if (userData.theme === 'dark') {
-      document.documentElement.setAttribute('data-theme', 'dark');
+    if (userData.theme) {
+      document.documentElement.setAttribute('data-theme', userData.theme);
+      localStorage.setItem('theme', userData.theme);
     }
   };
 
   const logout = async () => {
-  try {
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (refreshToken) {
-      await axios.post(`${API_BASE}/logout.php`, {
-        refresh_token: refreshToken
-      });
+    try {
+      await axios.post(`${API_BASE}/logout.php`);
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      setUser(null);
+      setIsAuthenticated(false);
     }
-  } catch (error) {
-    console.error('Logout error:', error);
-  } finally {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-    setUser(null);
-    setIsAuthenticated(false);
-  }
-};
+  };
 
-  const updateUserTheme = (theme) => {
+  const updateUserTheme = async (theme) => {
     if (user) {
-      const updatedUser = { ...user, theme };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      try {
+        const response = await axios.post(`${API_BASE}/update-theme.php`, {
+          theme: theme
+        });
+        
+        if (response.data.success) {
+          const updatedUser = { ...user, theme };
+          setUser(updatedUser);
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          document.documentElement.setAttribute('data-theme', theme);
+          localStorage.setItem('theme', theme);
+          return true;
+        }
+      } catch (error) {
+        console.error('Error updating theme:', error);
+      }
     }
+    return false;
   };
 
   const value = {

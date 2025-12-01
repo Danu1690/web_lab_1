@@ -88,21 +88,33 @@ try {
             $userStmt->execute([$userId]);
             $user = $userStmt->fetch(PDO::FETCH_ASSOC);
             
-            // Генерируем токены
-            $accessToken = generateJWT(['user_id' => $userId], JWT_ACCESS_SECRET, 900); // 15 минут
+            // Генерируем Access Token (15 минут)
+            $accessToken = generateJWT(['user_id' => $userId], JWT_ACCESS_SECRET, 900);
+            
+            // Генерируем Refresh Token
             $refreshToken = generateRefreshToken();
             
-            // Сохраняем refresh токен в базу (30 дней)
+            // Сохраняем Refresh Token в БД (30 дней)
             $expiresAt = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60));
             $refreshQuery = "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)";
             $refreshStmt = $db->prepare($refreshQuery);
             $refreshStmt->execute([$userId, $refreshToken, $expiresAt]);
             
+            // Устанавливаем httpOnly cookie с Refresh Token
+            setcookie('refresh_token', $refreshToken, [
+                'expires' => time() + (30 * 24 * 60 * 60),
+                'path' => '/',
+                'domain' => 'localhost',
+                'secure' => false,
+                'httponly' => true,
+                'samesite' => 'Strict'
+            ]);
+            
+            // Отправляем ТОЛЬКО Access Token клиенту
             echo json_encode([
                 "success" => true, 
                 "message" => "User registered successfully",
                 "access_token" => $accessToken,
-                "refresh_token" => $refreshToken,
                 "user" => $user
             ]);
         } else {
